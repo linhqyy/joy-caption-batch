@@ -229,6 +229,13 @@ parser.add_argument(
     help="Suffix string to append to the generated caption.",
 )
 
+# Add a --low-vram argument to enable low-VRAM mode
+parser.add_argument(
+    "--low-vram",
+    action="store_true",
+    help="Enable low-VRAM mode for processing images.",
+)
+
 PIL.Image.MAX_IMAGE_PIXELS = 933120000  # Suppress Pillow warnings on large images
 
 
@@ -291,13 +298,27 @@ def main():
     assert isinstance(tokenizer, PreTrainedTokenizer) or isinstance(
         tokenizer, PreTrainedTokenizerFast
     ), f"Tokenizer is of type {type(tokenizer)}"
-    llava_model = LlavaForConditionalGeneration.from_pretrained(
-        args.model, torch_dtype="bfloat16", device_map="auto"
-    )
+    
+    # Adjust model loading to use bitsandbytes for low-VRAM mode
+    if args.low_vram:
+        import bitsandbytes as bnb
+        llava_model = LlavaForConditionalGeneration.from_pretrained(
+            args.model, torch_dtype="bfloat16", device_map="auto", load_in_8bit=True
+        )
+        logging.info("Low-VRAM mode enabled.")
+    else:
+        llava_model = LlavaForConditionalGeneration.from_pretrained(
+            args.model, torch_dtype="bfloat16", device_map="auto"
+        )
     assert isinstance(llava_model, LlavaForConditionalGeneration)
 
     # Log image_seq_length for debugging
     logging.debug(f"Image sequence length: {args.image_seq_length}")
+
+    # Update DataLoader to use a smaller batch size in low-VRAM mode
+    batch_size = args.batch_size
+    if args.low_vram:
+        batch_size = max(1, batch_size // 2)  # Reduce batch size by half in low-VRAM mode
 
     dataset = ImageDataset(
         prompts,
@@ -312,7 +333,7 @@ def main():
         num_workers=args.num_workers,
         shuffle=False,
         drop_last=False,
-        batch_size=args.batch_size,
+        batch_size=batch_size,
     )
     end_of_header_id = tokenizer.convert_tokens_to_ids("<|end_header_id|>")
     end_of_turn_id = tokenizer.convert_tokens_to_ids("<|eot_id|>")
