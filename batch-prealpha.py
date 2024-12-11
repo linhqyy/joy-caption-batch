@@ -11,6 +11,14 @@ import os
 from tqdm import tqdm
 from huggingface_hub import hf_hub_download
 import requests
+import argparse
+
+# Create the parser
+parser = argparse.ArgumentParser(description="Batch Joy Caption processing")
+# Add an argument
+parser.add_argument('--img_dir', type=str, help='Path to the image input directory')
+# Parse the argument
+args = parser.parse_args()
 
 # Configuration options
 LOW_VRAM_MODE = True  # Option to switch to a model that uses less VRAM
@@ -24,7 +32,11 @@ BATCH_PROCESSING_COUNT = 4  # Number of images to process in a batch
 #On a 3090 (24gb vram) with low_vram enabled, you can use a batch count of 16.
 
 # Specify input and output folder paths
-INPUT_FOLDER = Path(__file__).parent / "input"
+if args.img_dir:
+    INPUT_FOLDER = Path(args.img_dir)
+else:
+    INPUT_FOLDER = Path(__file__).parent / "input"
+    
 OUTPUT_FOLDER = INPUT_FOLDER
 
 # LLM Settings
